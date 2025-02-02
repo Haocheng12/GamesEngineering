@@ -1,0 +1,14 @@
+﻿  raster.cpp
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\mesh.h(197,25): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  (compiling source file 'Rasterizer/raster.cpp')
+  
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\mesh.h(202,27): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  (compiling source file 'Rasterizer/raster.cpp')
+  
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\renderer.h(11,30): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file 'Rasterizer/raster.cpp')
+  
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\raster.cpp(119,69): warning C4305: 'argument': truncation from 'double' to 'float'
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\raster.cpp(120,69): warning C4305: 'argument': truncation from 'double' to 'float'
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\raster.cpp(121,69): warning C4305: 'argument': truncation from 'double' to 'float'
+  GameEngineering.vcxproj -> C:\Users\u5674759\source\repos\GameEngineering\x64\Debug\GameEngineering.exe

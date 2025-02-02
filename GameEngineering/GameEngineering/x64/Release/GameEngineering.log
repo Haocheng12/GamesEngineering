@@ -1,0 +1,19 @@
+﻿  raster.cpp
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\mesh.h(244,25): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  (compiling source file 'Rasterizer/raster.cpp')
+  
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\mesh.h(249,27): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+  (compiling source file 'Rasterizer/raster.cpp')
+  
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\renderer.h(11,30): warning C4305: 'initializing': truncation from 'double' to 'float'
+  (compiling source file 'Rasterizer/raster.cpp')
+  
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\raster.cpp(289,69): warning C4305: 'argument': truncation from 'double' to 'float'
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\raster.cpp(290,69): warning C4305: 'argument': truncation from 'double' to 'float'
+C:\Users\u5674759\source\repos\GameEngineering\GameEngineering\Rasterizer\raster.cpp(291,69): warning C4305: 'argument': truncation from 'double' to 'float'
+  Generating code
+  5 of 637 functions ( 0.8%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    1 functions had inline decision re-evaluated but remain unchanged
+  Finished generating code
+  GameEngineering.vcxproj -> C:\Users\u5674759\source\repos\GameEngineering\x64\Release\GameEngineering.exe
