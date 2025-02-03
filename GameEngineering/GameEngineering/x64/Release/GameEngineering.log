@@ -12,8 +12,8 @@ C:\Users\22870\source\repos\GamesEngineering\GameEngineering\GameEngineering\Ras
 C:\Users\22870\source\repos\GamesEngineering\GameEngineering\GameEngineering\Rasterizer\raster.cpp(253,69): warning C4305: 'argument': truncation from 'double' to 'float'
 C:\Users\22870\source\repos\GamesEngineering\GameEngineering\GameEngineering\Rasterizer\raster.cpp(254,69): warning C4305: 'argument': truncation from 'double' to 'float'
   Generating code
-  68 of 815 functions ( 8.3%) were compiled, the rest were copied from previous compilation.
-    1 functions were new in current compilation
-    46 functions had inline decision re-evaluated but remain unchanged
+  42 of 771 functions ( 5.4%) were compiled, the rest were copied from previous compilation.
+    0 functions were new in current compilation
+    3 functions had inline decision re-evaluated but remain unchanged
   Finished generating code
   GameEngineering.vcxproj -> C:\Users\22870\source\repos\GamesEngineering\GameEngineering\x64\Release\GameEngineering.exe

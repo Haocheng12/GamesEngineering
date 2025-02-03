@@ -131,7 +131,7 @@ void cullingRender(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L)
 
 
 std::mutex renderMutex;
-unsigned int numThreads = 3;  // Dynamically set thread count
+unsigned int numThreads = 11;  // Dynamically set thread count
 
 
 void cliping(Renderer& renderer, std::vector<Mesh*>& scene, matrix& camera, Light& L, size_t start, size_t end, std::vector<std::vector<triangle>>& threadTriangles, size_t threadIndex) {
@@ -530,9 +530,9 @@ void scene3()
 // No input variables
 int main() {
     // Uncomment the desired scene function to run
-    //scene1();
+    scene1();
     //scene2();
-    scene3();
+    //scene3();
      
     
 
