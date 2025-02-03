@@ -160,71 +160,66 @@ void cullingRender(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L)
     }
 }
 
-unsigned int numThreads = 8;
+std::mutex renderMutex;
+unsigned int numThreads = 3;  // Dynamically set thread count
 
-void renderMT(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L, int numThreads) {
-    // Combine perspective, camera, and world transformations for the mesh
+// Threaded rendering function without frequent mutex locking
+void renderThread(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L, size_t start, size_t end, std::vector<triangle>& localTriangles) {
     matrix p = renderer.perspective * camera * mesh->world;
 
-    std::mutex renderMutex; // Mutex for synchronizing renderer access
+    for (size_t i = start; i < end; i++) {
+        triIndices& ind = mesh->triangles[i];
+        Vertex t[3];
 
-    // Lambda function for processing a subset of triangles
-    auto processTriangles = [&](size_t start, size_t end) {
-        for (size_t i = start; i < end; i++) {
-            triIndices& ind = mesh->triangles[i];
-            Vertex t[3]; // Temporary array to store transformed triangle vertices
-
-            // Transform each vertex of the triangle
-            for (unsigned int j = 0; j < 3; j++) {
-                t[j].p = p * mesh->vertices[ind.v[j]].p; // Apply transformations
-                t[j].p.divideW(); // Perspective division to normalize coordinates
-
-                // Transform normals into world space for accurate lighting
-                t[j].normal = mesh->world * mesh->vertices[ind.v[j]].normal;
-                t[j].normal.normalise();
-
-                // Map normalized device coordinates to screen space
-                t[j].p[0] = (t[j].p[0] + 1.f) * 0.5f * static_cast<float>(renderer.canvas.getWidth());
-                t[j].p[1] = (t[j].p[1] + 1.f) * 0.5f * static_cast<float>(renderer.canvas.getHeight());
-                t[j].p[1] = renderer.canvas.getHeight() - t[j].p[1]; // Invert y-axis
-
-                // Copy vertex colors
-                t[j].rgb = mesh->vertices[ind.v[j]].rgb;
-            }
-
-            // Clip triangles with Z-values outside [-1, 1]
-            if (fabs(t[0].p[2]) > 1.0f || fabs(t[1].p[2]) > 1.0f || fabs(t[2].p[2]) > 1.0f) continue;
-
-            // Create a triangle object
-            triangle tri(t[0], t[1], t[2]);
-
-            // Lock the renderer before drawing
-            {
-                std::lock_guard<std::mutex> lock(renderMutex);
-                tri.draw(renderer, L, mesh->ka, mesh->kd);
-            }
+        for (unsigned int j = 0; j < 3; j++) {
+            t[j].p = p * mesh->vertices[ind.v[j]].p;
+            t[j].p.divideW();
+            t[j].normal = mesh->world * mesh->vertices[ind.v[j]].normal;
+            t[j].normal.normalise();
+            t[j].p[0] = (t[j].p[0] + 1.f) * 0.5f * static_cast<float>(renderer.canvas.getWidth());
+            t[j].p[1] = (t[j].p[1] + 1.f) * 0.5f * static_cast<float>(renderer.canvas.getHeight());
+            t[j].p[1] = renderer.canvas.getHeight() - t[j].p[1];
+            t[j].rgb = mesh->vertices[ind.v[j]].rgb;
         }
-        };
 
-    size_t totalTriangles = mesh->triangles.size();
-    std::vector<std::thread> threads;
-    size_t batchSize = totalTriangles / numThreads;
-    size_t remaining = totalTriangles % numThreads;
+        if (fabs(t[0].p[2]) > 1.0f || fabs(t[1].p[2]) > 1.0f || fabs(t[2].p[2]) > 1.0f) continue;
 
-    size_t start = 0;
-    for (int i = 0; i < numThreads; i++) {
-        size_t end = start + batchSize + (i < remaining ? 1 : 0); // Distribute remainder triangles evenly
-        threads.emplace_back(processTriangles, start, end);
-        start = end;
-    }
-
-    // Join threads to ensure all processing completes
-    for (auto& t : threads) {
-        t.join();
+        localTriangles.emplace_back(t[0], t[1], t[2]);
     }
 }
 
+// Multithreaded rendering function with balanced workload
+void renderMT(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L) {
+    size_t numTriangles = mesh->triangles.size();
+    if (numTriangles == 0) return;
 
+    size_t threadCount = min(numThreads, numTriangles / 10);  // Avoid too many threads on small meshes
+    if (threadCount < 1) threadCount = 1;
+
+    size_t chunkSize = (numTriangles + threadCount - 1) / threadCount;
+    std::vector<std::thread> threads;
+    std::vector<std::vector<triangle>> threadTriangles(threadCount);
+
+    for (unsigned int i = 0; i < threadCount; i++) {
+        size_t start = i * chunkSize;
+        size_t end = min(start + chunkSize, numTriangles);
+        if (start >= end) break; // Prevent empty tasks
+        threadTriangles[i].reserve(chunkSize);  // Preallocate space to avoid resizing overhead
+        threads.emplace_back(renderThread, std::ref(renderer), mesh, std::ref(camera), std::ref(L), start, end, std::ref(threadTriangles[i]));
+    }
+
+    for (auto& t : threads) {
+        t.join();
+    }
+
+    // Merge all thread buffers and render
+    std::lock_guard<std::mutex> lock(renderMutex);
+    for ( auto& localTriangles : threadTriangles) {
+        for ( auto& tri : localTriangles) {
+            tri.draw(renderer, L, mesh->ka, mesh->kd);
+        }
+    }
+}
 
 
 
@@ -349,7 +344,7 @@ void scene1() {
         for (auto& m : scene)
             //render(renderer, m, camera, L);
             //cullingRender(renderer, m, camera, L);
-            renderMT(renderer, m, camera, L,numThreads);
+            renderMT(renderer, m, camera, L);
         renderer.present();
     }
 
@@ -419,7 +414,7 @@ void scene2() {
         if (renderer.canvas.keyPressed(VK_ESCAPE)) break;
 
         for (auto& m : scene)
-            render(renderer, m, camera, L);
+            renderMT(renderer, m, camera, L);
         renderer.present();
     }
 
@@ -546,8 +541,9 @@ void scene3()
         for (auto& m : scene)
         {
             //render(renderer, m, camera, L);
-            renderMT(renderer, m, camera, L,numThreads);
+            renderMT(renderer, m, camera, L);
         }
+       
 
         renderer.present();
     }
