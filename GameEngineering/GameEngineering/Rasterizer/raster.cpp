@@ -61,39 +61,20 @@ void render(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L) {
 
 void cullingRender(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L)
 {
-    // 1) FIRST: Perform MESH-LEVEL FRUSTUM CULLING (bounding sphere check)
-
-    // We'll define a near plane distance (nearDist). 
-    // For a typical perspective, you might define nearDist = 0.1f or 1.0f, etc.
+    // Define near plane distance
     float nearDist = 1.0f;
 
     // Transform the mesh's bounding-sphere center into camera space
-    //    cw = camera * mesh->world
-    // but we only need it for the center, so:
     vec4 centerCam = camera * mesh->world * mesh->boundingCenter;
     if (-centerCam[2] < nearDist - mesh->boundingRadius) {
-        // Entire sphere is behind near plane => skip
         return;
     }
 
-    
-
-    // If you want to be more thorough, you can define a far plane (z = -farDist)
-    // and skip if (-centerCam.z > farDist + mesh->boundingRadius). 
-    // Similarly, you can do left/right/top/bottom plane checks for a complete frustum test.
-    //
-    // For brevity, we'll keep just this near-plane test as a demo.
-
-    // 2) PREPARE MATRICES FOR BACKFACE CULLING + PROJECTION
     matrix cw = camera * mesh->world;             // transform to camera space
-    matrix p = renderer.perspective * cw;        // then to clip space (NDC)
+    matrix p = renderer.perspective * cw;        // then to clip space 
 
-    // 3) ITERATE THROUGH ALL TRIANGLES
     for (triIndices& ind : mesh->triangles)
     {
-        //-------------------------------------------------------
-        // A) BACKFACE CULLING in CAMERA SPACE
-        //-------------------------------------------------------
         // Transform each vertex to camera space
         vec4 c0 = cw * mesh->vertices[ind.v[0]].p;
         vec4 c1 = cw * mesh->vertices[ind.v[1]].p;
@@ -110,17 +91,11 @@ void cullingRender(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L)
 
         // Cross product
         vec3 cross = e1.cross(e2);
-
-        // For CCW geometry in a typical right-handed system looking down -Z,
         // cross.z > 0 => back-facing.  If your model disappears, flip the sign check.
         if (cross.z > 0.0f)
         {
             continue; // Skip back-facing triangles
         }
-
-        //-------------------------------------------------------
-        // B) PERSPECTIVE + SCREEN-SPACE TRANSFORM
-        //-------------------------------------------------------
         Vertex t[3];
         for (unsigned int i = 0; i < 3; i++)
         {
@@ -132,7 +107,7 @@ void cullingRender(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L)
             t[i].normal = mesh->world * mesh->vertices[ind.v[i]].normal;
             t[i].normal.normalise();
 
-            // Convert NDC -> pixel coords
+            // Convert NDC to pixel coords
             t[i].p[0] = (t[i].p[0] + 1.f) * 0.5f * (float)renderer.canvas.getWidth();
             t[i].p[1] = (t[i].p[1] + 1.f) * 0.5f * (float)renderer.canvas.getHeight();
             t[i].p[1] = renderer.canvas.getHeight() - t[i].p[1]; // Flip Y
@@ -140,10 +115,6 @@ void cullingRender(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L)
             // Copy vertex color
             t[i].rgb = mesh->vertices[ind.v[i]].rgb;
         }
-
-        //-------------------------------------------------------
-        // C) SIMPLE Z-CLIP
-        //-------------------------------------------------------
         // If any vertex has |z| > 1 => skip triangle
         if (fabs(t[0].p[2]) > 1.0f ||
             fabs(t[1].p[2]) > 1.0f ||
@@ -152,60 +123,59 @@ void cullingRender(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L)
             continue;
         }
 
-        //-------------------------------------------------------
-        // D) DRAW THE TRIANGLE
-        //-------------------------------------------------------
+        // draw the triangles
         triangle tri(t[0], t[1], t[2]);
         tri.draw(renderer, L, mesh->ka, mesh->kd);
     }
 }
 
+
 std::mutex renderMutex;
 unsigned int numThreads = 3;  // Dynamically set thread count
 
-// Threaded rendering function without frequent mutex locking
-void renderThread(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L, size_t start, size_t end, std::vector<triangle>& localTriangles) {
-    matrix p = renderer.perspective * camera * mesh->world;
 
+void cliping(Renderer& renderer, std::vector<Mesh*>& scene, matrix& camera, Light& L, size_t start, size_t end, std::vector<std::vector<triangle>>& threadTriangles, size_t threadIndex) {
     for (size_t i = start; i < end; i++) {
-        triIndices& ind = mesh->triangles[i];
-        Vertex t[3];
+        Mesh* mesh = scene[i];
+        matrix p = renderer.perspective * camera * mesh->world;
 
-        for (unsigned int j = 0; j < 3; j++) {
-            t[j].p = p * mesh->vertices[ind.v[j]].p;
-            t[j].p.divideW();
-            t[j].normal = mesh->world * mesh->vertices[ind.v[j]].normal;
-            t[j].normal.normalise();
-            t[j].p[0] = (t[j].p[0] + 1.f) * 0.5f * static_cast<float>(renderer.canvas.getWidth());
-            t[j].p[1] = (t[j].p[1] + 1.f) * 0.5f * static_cast<float>(renderer.canvas.getHeight());
-            t[j].p[1] = renderer.canvas.getHeight() - t[j].p[1];
-            t[j].rgb = mesh->vertices[ind.v[j]].rgb;
+        for (size_t t = 0; t < mesh->triangles.size(); t++) {
+            triIndices& ind = mesh->triangles[t];
+            Vertex verts[3];
+
+            for (unsigned int j = 0; j < 3; j++) {
+                verts[j].p = p * mesh->vertices[ind.v[j]].p;
+                verts[j].p.divideW();
+                verts[j].normal = mesh->world * mesh->vertices[ind.v[j]].normal;
+                verts[j].normal.normalise();
+                verts[j].p[0] = (verts[j].p[0] + 1.f) * 0.5f * static_cast<float>(renderer.canvas.getWidth());
+                verts[j].p[1] = (verts[j].p[1] + 1.f) * 0.5f * static_cast<float>(renderer.canvas.getHeight());
+                verts[j].p[1] = renderer.canvas.getHeight() - verts[j].p[1]; // Flip Y
+                verts[j].rgb = mesh->vertices[ind.v[j]].rgb;
+            }
+
+            if (fabs(verts[0].p[2]) > 1.0f || fabs(verts[1].p[2]) > 1.0f || fabs(verts[2].p[2]) > 1.0f) continue;
+
+            threadTriangles[threadIndex].emplace_back(verts[0], verts[1], verts[2]);
         }
-
-        if (fabs(t[0].p[2]) > 1.0f || fabs(t[1].p[2]) > 1.0f || fabs(t[2].p[2]) > 1.0f) continue;
-
-        localTriangles.emplace_back(t[0], t[1], t[2]);
     }
 }
+void renderSceneMT(Renderer& renderer, std::vector<Mesh*>& scene, matrix& camera, Light& L) {
+    size_t numMeshes = scene.size();
+    if (numMeshes == 0) return;
 
-// Multithreaded rendering function with balanced workload
-void renderMT(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L) {
-    size_t numTriangles = mesh->triangles.size();
-    if (numTriangles == 0) return;
+    size_t chunkSize = (numMeshes + numThreads - 1) / numThreads;
 
-    size_t threadCount = min(numThreads, numTriangles / 10);  // Avoid too many threads on small meshes
-    if (threadCount < 1) threadCount = 1;
-
-    size_t chunkSize = (numTriangles + threadCount - 1) / threadCount;
     std::vector<std::thread> threads;
-    std::vector<std::vector<triangle>> threadTriangles(threadCount);
+    std::vector<std::vector<triangle>> threadTriangles(numThreads);
 
-    for (unsigned int i = 0; i < threadCount; i++) {
+    for (size_t i = 0; i < numThreads; i++) {
         size_t start = i * chunkSize;
-        size_t end = min(start + chunkSize, numTriangles);
+        size_t end = min(start + chunkSize, numMeshes);
         if (start >= end) break; // Prevent empty tasks
-        threadTriangles[i].reserve(chunkSize);  // Preallocate space to avoid resizing overhead
-        threads.emplace_back(renderThread, std::ref(renderer), mesh, std::ref(camera), std::ref(L), start, end, std::ref(threadTriangles[i]));
+
+        threadTriangles[i].reserve(chunkSize * 10);  // Preallocate based on estimated number of triangles
+        threads.emplace_back(cliping, std::ref(renderer), std::ref(scene), std::ref(camera), std::ref(L), start, end, std::ref(threadTriangles), i);
     }
 
     for (auto& t : threads) {
@@ -214,14 +184,12 @@ void renderMT(Renderer& renderer, Mesh* mesh, matrix& camera, Light& L) {
 
     // Merge all thread buffers and render
     std::lock_guard<std::mutex> lock(renderMutex);
-    for ( auto& localTriangles : threadTriangles) {
-        for ( auto& tri : localTriangles) {
-            tri.draw(renderer, L, mesh->ka, mesh->kd);
+    for (auto& localTriangles : threadTriangles) {
+        for (auto& tri : localTriangles) {
+            tri.draw(renderer, L, scene[0]->ka, scene[0]->kd);
         }
     }
 }
-
-
 
 // Test scene function to demonstrate rendering with user-controlled transformations
 // No input variables
@@ -340,11 +308,11 @@ void scene1() {
                 start = std::chrono::high_resolution_clock::now();
             }
         }
-
-        for (auto& m : scene)
-            //render(renderer, m, camera, L);
-            //cullingRender(renderer, m, camera, L);
-            renderMT(renderer, m, camera, L);
+        renderSceneMT(renderer, scene, camera, L);
+        //for (auto& m : scene)
+        //    //render(renderer, m, camera, L);
+        //    //cullingRender(renderer, m, camera, L);
+            
         renderer.present();
     }
 
@@ -412,9 +380,9 @@ void scene2() {
         }
 
         if (renderer.canvas.keyPressed(VK_ESCAPE)) break;
-
-        for (auto& m : scene)
-            renderMT(renderer, m, camera, L);
+        renderSceneMT(renderer, scene, camera, L);
+        /*for (auto& m : scene)
+            renderMT(renderer, m, camera, L);*/
         renderer.present();
     }
 
@@ -538,12 +506,12 @@ void scene3()
         }
 
         // Render all cubes
-        for (auto& m : scene)
-        {
-            //render(renderer, m, camera, L);
-            renderMT(renderer, m, camera, L);
-        }
-       
+        //for (auto& m : scene)
+        //{
+        //    //render(renderer, m, camera, L);
+        //    render(renderer, m, camera, L);
+        //}
+        renderSceneMT(renderer, scene, camera, L);
 
         renderer.present();
     }
@@ -562,9 +530,9 @@ void scene3()
 // No input variables
 int main() {
     // Uncomment the desired scene function to run
-    scene1();
+    //scene1();
     //scene2();
-    //scene3();
+    scene3();
      
     
 

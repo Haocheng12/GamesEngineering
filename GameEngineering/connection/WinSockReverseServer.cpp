@@ -16,8 +16,8 @@ struct ClientInfo {
     std::string username;
 };
 
-static std::vector<ClientInfo> g_clients;
-static std::mutex g_clientsMutex;
+static std::vector<ClientInfo> clients;
+static std::mutex clientsMutex;
 
 // Send a message to a single client
 void SendToClient(SOCKET sock, const std::string& message)
@@ -28,8 +28,8 @@ void SendToClient(SOCKET sock, const std::string& message)
 // Broadcast a message to all clients 
 void BroadcastMessage(const std::string& message, SOCKET excludeSocket = INVALID_SOCKET)
 {
-    std::lock_guard<std::mutex> lock(g_clientsMutex);
-    for (auto& c : g_clients) {
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    for (auto& c : clients) {
         if (c.socket != excludeSocket) {
             SendToClient(c.socket, message);
         }
@@ -39,35 +39,35 @@ void BroadcastMessage(const std::string& message, SOCKET excludeSocket = INVALID
 // Build and send the updated user list as a special "[USERLIST]" message
 void BroadcastUserList()
 {
-    std::lock_guard<std::mutex> lock(g_clientsMutex);
+    std::lock_guard<std::mutex> lock(clientsMutex);
 
     // Build a line like "[USERLIST]Alice,Fox,Rabbit"
     std::ostringstream ss;
     ss << "[USERLIST]";
-    for (auto& client : g_clients) {
+    for (auto& client : clients) {
         ss << client.username << ",";
     }
     // Remove trailing comma
     // (only if there's at least one user)
     std::string userList = ss.str();
-    if (!g_clients.empty()) {
+    if (!clients.empty()) {
         userList.pop_back(); 
     }
     userList += "\n";
 
     // Send to client
-    for (auto& client : g_clients) {
+    for (auto& client : clients) {
         SendToClient(client.socket, userList);
     }
 }
 
 void RemoveClient(SOCKET clientSocket)
 {
-    std::lock_guard<std::mutex> lock(g_clientsMutex);
-    auto it = std::remove_if(g_clients.begin(), g_clients.end(),
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    auto it = std::remove_if(clients.begin(), clients.end(),
         [clientSocket](const ClientInfo& ci) { return ci.socket == clientSocket; });
-    if (it != g_clients.end()) {
-        g_clients.erase(it, g_clients.end());
+    if (it != clients.end()) {
+        clients.erase(it, clients.end());
     }
 }
 
@@ -104,8 +104,8 @@ void HandleClient(SOCKET client_socket)
 
     // Insert the client into the global list
     {
-        std::lock_guard<std::mutex> lock(g_clientsMutex);
-        g_clients.push_back({ client_socket, userName });
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        clients.push_back({ client_socket, userName });
     }
 
     // Announce join in chat
@@ -146,8 +146,8 @@ void HandleClient(SOCKET client_socket)
                 // find target user in g_clients
                 SOCKET targetSocket = INVALID_SOCKET;
                 {
-                    std::lock_guard<std::mutex> lock(g_clientsMutex);
-                    for (auto& ci : g_clients)
+                    std::lock_guard<std::mutex> lock(clientsMutex);
+                    for (auto& ci : clients)
                     {
                         if (ci.username == targetUser)
                         {
